@@ -1,0 +1,2 @@
+[tasks]
+up = "pocketbase serve --dir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_data"
