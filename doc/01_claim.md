@@ -52,7 +52,10 @@
         - 静的ファイル（フロントエンド）の配信
         - サーバーAPI（RSS取得、LLM連携など）
 - **フロントエンド**:
-    - ブラウザで動作するWebアプリケーションであること。
+    - [Vite](https://vitejs.dev/) + [React](https://react.dev/) をベースとしたWebアプリケーションであること。
+    - 言語は TypeScript を使用すること。
+    - 状態管理には [Zustand](https://github.com/pmndrs/zustand) を利用すること。
+    - スタイリングには [Tailwind CSS](https://tailwindcss.com/) を利用すること。
 - **LLMプロバイダ**:
     - OpenRouter を利用すること。
 

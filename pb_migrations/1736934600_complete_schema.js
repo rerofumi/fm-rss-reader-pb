@@ -119,6 +119,14 @@ migrate((app) => {
                 maxSelect: 1
             },
             {
+                name: "key_prefix",
+                type: "text",
+                required: true,
+                unique: true,
+                min: 6,
+                max: 64
+            },
+            {
                 name: "token_hash",
                 type: "text",
                 required: true,
@@ -133,6 +141,12 @@ migrate((app) => {
                 maxSize: 2000000
             },
             {
+                name: "name",
+                type: "text",
+                required: false,
+                max: 200
+            },
+            {
                 name: "expires_at",
                 type: "date",
                 required: false
@@ -145,8 +159,10 @@ migrate((app) => {
         ],
         indexes: [
             "CREATE INDEX idx_mcp_tokens_user ON mcp_tokens(user)",
+            "CREATE UNIQUE INDEX idx_mcp_tokens_key_prefix ON mcp_tokens(key_prefix)",
             "CREATE INDEX idx_mcp_tokens_token_hash ON mcp_tokens(token_hash)",
-            "CREATE INDEX idx_mcp_tokens_expires_at ON mcp_tokens(expires_at)"
+            "CREATE INDEX idx_mcp_tokens_expires_at ON mcp_tokens(expires_at)",
+            "CREATE INDEX idx_mcp_tokens_last_used_at ON mcp_tokens(last_used_at)"
         ]
     }))
     

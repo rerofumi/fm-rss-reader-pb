@@ -1,2 +1,11 @@
+# Project toolchain managed by mise
+[tools]
+# Go toolchain for PocketBase custom server build/run
+# Use a stable minor to receive latest patch updates automatically
+go = "1.24"
+# Optional: linter (requires asdf plugin availability via mise)
+# golangci-lint = "latest"
+
 [tasks]
-up = "pocketbase serve --dir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_data"
+up = ".\\fm-rss-mcp-pb.exe serve --dir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_data"
+build = "mise exec -- go build -C server -o ../fm-rss-mcp-pb.exe ./cmd/pocketbase"
