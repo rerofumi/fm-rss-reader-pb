@@ -25,6 +25,13 @@
     .ok { color: #8df7b7; }
     .err { color: #ff8aa1; }
     .sep { height: 1px; background: #1f274a; margin: 8px 0; }
+
+    /* Modal styles */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-panel { width: min(640px, calc(100% - 32px)); background: #11162b; border: 1px solid #2a355f; border-radius: 10px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); display: grid; gap: 12px; }
+    .modal-panel h3 { margin: 0; font-size: 16px; color: #9fb4ff; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-panel .card { background: #0d1330; }
   </style>
 </head>
 <body>
@@ -66,7 +73,6 @@
       </div>
       <div class="sep"></div>
       <div id="tokensList" class="list"></div>
-      <div id="tokenOnce" class="card mono" style="display:none;"></div>
       <div id="tokensMsg" class="mono"></div>
     </section>
 
@@ -110,12 +116,28 @@
     </section>
   </main>
 
+  <!-- Token once modal -->
+  <div id="tokenModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="tokenModalTitle" style="display:none;">
+    <div class="modal-panel">
+      <h3 id="tokenModalTitle">新しい MCP トークン</h3>
+      <div class="muted">このトークンは一度しか表示されません。安全な場所に保存してください。</div>
+      <div id="tokenModalValue" class="card mono" style="word-break: break-all;"></div>
+      <div class="modal-actions">
+        <button onclick="copyTokenToClipboard()">コピー</button>
+        <button onclick="closeTokenModal()">閉じる</button>
+      </div>
+      <div id="tokenModalMsg" class="mono"></div>
+    </div>
+  </div>
+
   <script>
   const state = {
     token: null, // pbJWT
     persistLocal: true,
     // For aborting the stream request
     abortController: null,
+    // One-time token shown in modal
+    oneTimeToken: null,
   };
 
   function storage() {
@@ -194,7 +216,8 @@
   // ========== MCP Tokens ==========
   async function loadTokens() {
     setMsg('tokensMsg', '取得中...');
-    hideOnceToken();
+    // NOTE: Do not hide the one-time token box here.
+    // Users may still be copying the just-created token.
     try {
       const res = await fetch('/api/mcp/tokens', { headers: authHeaders() });
       if (!res.ok) throw await res.text();
@@ -235,7 +258,6 @@
 
   async function createToken() {
     setMsg('tokensMsg', '発行中...');
-    hideOnceToken();
     try {
       const name = prompt('任意の表示名 (空でも可)') || undefined;
       const res = await fetch('/api/mcp/tokens', {
@@ -245,9 +267,9 @@
       });
       if (!res.ok) throw await res.text();
       const data = await res.json();
-      // data.token は一度のみ表示
-      showOnceToken(data.token);
-      setMsg('tokensMsg', '発行しました。ページに表示された token を安全な場所に保存してください。');
+      // 一度だけモーダルで表示
+      openTokenModal(data.token);
+      setMsg('tokensMsg', '発行しました。');
       // リスト更新
       await loadTokens();
     } catch (e) {
@@ -258,7 +280,6 @@
   async function deleteToken(id) {
     if (!confirm('トークンを削除しますか？')) return;
     setMsg('tokensMsg', `削除中...`);
-    hideOnceToken();
     try {
       const res = await fetch('/api/mcp/tokens/' + encodeURIComponent(id), {
         method: 'DELETE',
@@ -272,16 +293,53 @@
     }
   }
 
-  function showOnceToken(token) {
-    const box = document.getElementById('tokenOnce');
-    box.style.display = '';
-    box.textContent = token ? token : '(取得できませんでした)';
+  // ======== Token modal ========
+  function openTokenModal(token) {
+    state.oneTimeToken = token || '';
+    const modal = document.getElementById('tokenModal');
+    const val = document.getElementById('tokenModalValue');
+    const msg = document.getElementById('tokenModalMsg');
+    val.textContent = state.oneTimeToken || '(取得できませんでした)';
+    msg.textContent = '';
+    msg.className = 'mono';
+    modal.style.display = 'flex';
   }
-  function hideOnceToken() {
-    const box = document.getElementById('tokenOnce');
-    box.style.display = 'none';
-    box.textContent = '';
+
+  function closeTokenModal() {
+    const modal = document.getElementById('tokenModal');
+    const val = document.getElementById('tokenModalValue');
+    modal.style.display = 'none';
+    val.textContent = '';
+    // 念のためトークン文字列をメモリからも消去
+    state.oneTimeToken = null;
   }
+
+  async function copyTokenToClipboard() {
+    const token = state.oneTimeToken || '';
+    const msg = document.getElementById('tokenModalMsg');
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(token);
+      } else {
+        // Fallback: create a temporary textarea
+        const ta = document.createElement('textarea');
+        ta.value = token;
+        ta.style.position = 'fixed';
+        ta.style.left = '-1000px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      msg.textContent = 'コピーしました';
+      msg.className = 'mono ok';
+    } catch (err) {
+      msg.textContent = 'コピーに失敗しました: ' + String(err);
+      msg.className = 'mono err';
+    }
+  }
+
 
   // ========== LLM ==========
   async function callLLM() {

@@ -7,5 +7,5 @@ go = "1.24"
 # golangci-lint = "latest"
 
 [tasks]
-up = "pocketbase.exe serve --dir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_data --hooksDir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_hooks --migrationsDir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_migrations"
+up = "pocketbase.exe serve --dev --dir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_data --hooksDir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_hooks --migrationsDir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_migrations"
 

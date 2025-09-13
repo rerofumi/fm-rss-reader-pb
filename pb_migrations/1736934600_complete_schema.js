@@ -31,6 +31,16 @@ migrate((app) => {
                 type: "number",
                 required: false,
                 noDecimal: true
+            },
+            {
+                name: "created",
+                type: "date",
+                required: true
+            },
+            {
+                name: "updated",
+                type: "date",
+                required: true
             }
         ],
         indexes: [
@@ -91,6 +101,16 @@ migrate((app) => {
                 required: false,
                 unique: true,
                 max: 500
+            },
+            {
+                name: "created",
+                type: "date",
+                required: true
+            },
+            {
+                name: "updated",
+                type: "date",
+                required: true
             }
         ],
         indexes: [
@@ -155,6 +175,16 @@ migrate((app) => {
                 name: "last_used_at",
                 type: "date",
                 required: false
+            },
+            {
+                name: "created",
+                type: "date",
+                required: true
+            },
+            {
+                name: "updated",
+                type: "date",
+                required: true
             }
         ],
         indexes: [

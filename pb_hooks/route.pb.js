@@ -1,37 +1,60 @@
 
 // 起動時の各種処理
 onBootstrap((e) => {
-  console.log("アプリ起動");
   //
   e.next();
 })
 
 // API sample
 routerAdd("GET", "/api/hello/{name}", (e) => {
-    let name = e.request.pathValue("name")
-    return e.json(200, { "message": "Hello " + name })
+  const testModule = require(`${__hooks}/module_test.js`)
+  testModule.test(e)
+  //
+  let name = e.request.pathValue("name")
+  return e.json(200, { "message": "Hello " + name })
+})
+
+routerAdd("POST", "/api/hello", (e) => {
+    const data = new DynamicModel({ name: "" })
+    e.bindBody(data)
+    let name = data.name
+  return e.json(200, { "message": "Hello " + name })
 })
 
 // --- routing: MCP token managemont API
 // トークン取得
 routerAdd("POST", "/api/mcp/tokens", (e) => {
-    id = "dummy"
-    token = "dummy_token"
-    return e.json(200, { "token": token, "id": id})
-}, $apis.requireAuth())
+    try {
+        const MCPTokenManager = require(`${__hooks}/mcp_token_manager.js`)
+        return MCPTokenManager.createToken(e)
+    } catch (err) {
+        const msg = (err && err.message) ? err.message : String(err)
+        return e.json(400, { error: { code: "route.mcp_tokens.create_failed", message: msg, details: {} } })
+    }
+}, $apis.requireAuth("_superusers", "users"))
 
 // トークン一覧
 routerAdd("GET", "/api/mcp/tokens", (e) => {
-    // TODO: implement list tokens for current user
-    return e.json(200, { items: [] })
-}, $apis.requireAuth())
+    console.log("###")
+    try {
+        const MCPTokenManager = require(`${__hooks}/mcp_token_manager.js`)
+        return MCPTokenManager.listTokens(e)
+    } catch (err) {
+        const msg = (err && err.message) ? err.message : String(err)
+        return e.json(400, { error: { code: "route.mcp_tokens.list_failed", message: msg, details: {} } })
+    }
+}, $apis.requireAuth("_superusers", "users"))
 
 // トークン失効
 routerAdd("DELETE", "/api/mcp/tokens/{id}", (e) => {
-    // TODO: implement revoke token by id for current user
-    let id = e.request.pathValue("id")
-    return e.json(200, { success: true, id })
-}, $apis.requireAuth())
+    try {
+        const MCPTokenManager = require(`${__hooks}/mcp_token_manager.js`)
+        return MCPTokenManager.revokeToken(e)
+    } catch (err) {
+        const msg = (err && err.message) ? err.message : String(err)
+        return e.json(400, { error: { code: "route.mcp_tokens.revoke_failed", message: msg, details: {} } })
+    }
+}, $apis.requireAuth("_superusers", "users"))
 
 // --- routing: MCP JSON-RPC endpoint
 routerAdd("POST", "/mcp/rss", (e) => {
@@ -49,16 +72,16 @@ routerAdd("POST", "/api/llm/query", (e) => {
     // Auth: pbJWT required
     // Body: { type, payload, model?, options? }
     return e.json(501, { error: { code: "not_implemented", message: "LLM query is not implemented yet" } })
-}, $apis.requireAuth())
+}, $apis.requireAuth("users"))
 
 routerAdd("POST", "/api/llm/stream", (e) => {
     // Auth: pbJWT required
     // SSE: Accept: text/event-stream (TODO)
     return e.json(501, { error: { code: "not_implemented", message: "LLM stream is not implemented yet" } })
-}, $apis.requireAuth())
+}, $apis.requireAuth("users"))
 
 routerAdd("GET", "/api/llm/models", (e) => {
     // Auth: pbJWT required
     // Optional endpoint: return allowed/available models
     return e.json(200, { models: [] })
-}, $apis.requireAuth())
+}, $apis.requireAuth("users"))
