@@ -7,5 +7,5 @@ go = "1.24"
 # golangci-lint = "latest"
 
 [tasks]
-up = ".\\fm-rss-mcp-pb.exe serve --dir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_data"
-build = "mise exec -- go build -C server -o ../fm-rss-mcp-pb.exe ./cmd/pocketbase"
+up = "pocketbase.exe serve --dir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_data --hooksDir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_hooks --migrationsDir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_migrations"
+

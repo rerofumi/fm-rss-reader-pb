@@ -285,115 +285,15 @@
 
 ## 11. PocketBase 実装ディレクトリとエントリポイント（/api, /mcp/rss）
 
-PocketBase を Go ライブラリとして使用し、Serve 時のイベントフックで `/api` と `/mcp/rss` を登録するための推奨構成とスケルトンを示す。
+PocketBase の javascript hooks を使用し、`/api` と `/mcp/rss` を作成する。
 
 ### 11.1 推奨ディレクトリ構成
 
 ```text path=null start=null
-server/
-  cmd/
-    pocketbase/
-      main.go                # エントリポイント（OnServeでルート登録）
-  internal/
-    api/
-      middleware.go         # pbJWT の検証、レート制限、共通ミドルウェア
-      llm_handlers.go       # /api/llm/query, /api/llm/stream, /api/llm/models
-    mcp/
-      rss_server.go         # /mcp/rss のJSON-RPCディスパッチ（tools/list, tools/call等）
-      auth.go               # MCPトークン検証ミドルウェア（mcp_tokensハッシュ検証）
-      schema.go             # JSON-RPCリクエスト/レスポンス構造体・バリデーション
-    llm/
-      openrouter_client.go  # OpenRouter呼び出し（同期/ストリーミング）
-      sse.go                # SSE応答実装（/api/llm/stream用）
-      prompts.go            # summarize/translate/ask のプロンプト雛形
-    rss/
-      fetch.go              # RSSフィード取得・集約（将来拡張/ツール用文脈）
-      parse.go              # RSS解析ユーティリティ
-    web/
-      static.go             # フロント配信登録（apis.StaticDirectoryHandler）
-  pb_migrations/            # PocketBaseのマイグレーション
-  pb_hooks/                 # JSVMフック（使う場合のみ）
-  pb_public/                # ビルド済みフロント配布
-  pb_data/                  # 実行時データ
+pb_hooks/                 # JSVMフック（使う場合のみ）
+  route.pb.js               # API エントリーポイント
 ```
 
 - 備考
   - `/mcp/rss` は JSON-RPC 2.0 によるツール呼び出しエンドポイント。名称は機能（RSS/MCP）を表すためのもの。
-  - JSVM を使う構成でも `onBeforeServe` でルート登録は可能だが、本プロジェクトでは型安全性と保守性の観点から Go 実装を優先する。
-
-### 11.2 エントリポイント（main.go スケルトン）
-
-```go path=null start=null
-package main
-
-import (
-  "log"
-  "github.com/pocketbase/pocketbase"
-  "github.com/pocketbase/pocketbase/core"
-  "github.com/pocketbase/pocketbase/apis"
-  // 内部実装
-  apiHandlers "project/server/internal/api"
-  mcpServer   "project/server/internal/mcp"
-)
-
-func main() {
-  app := pocketbase.New()
-
-  app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-    // 静的配信（必要に応じて有効化）
-    // se.Router.GET("/*", apis.StaticDirectoryHandler(embeddedFS, true))
-
-    // /api グループ（pbJWT 必須）
-    api := se.Router.Group("/api")
-    api.Use(apis.RequireRecordAuth())
-
-    api.POST("/llm/query", apiHandlers.HandleLLMQuery(app))
-    api.POST("/llm/stream", apiHandlers.HandleLLMStream(app)) // SSE
-    api.GET("/llm/models", apiHandlers.HandleLLMModels(app))
-
-    // /mcp グループ（MCPトークン必須）
-    mcp := se.Router.Group("/mcp")
-    mcp.Use(mcpServer.RequireMCPToken(app))
-
-    // JSON-RPC 2.0 (tools/list, tools/call, etc.)
-    mcp.POST("/rss", mcpServer.HandleRSSJSONRPC(app))
-
-    return se.Next()
-  })
-
-  if err := app.Start(); err != nil {
-    log.Fatal(err)
-  }
-}
-```
-
-### 11.3 ミドルウェア/ハンドラの責務（概要）
-
-- internal/api/middleware.go
-  - pbJWT（RecordAuth）のヘッダ/Cookie検証、レート制限、共通レスポンスエラー整形
-- internal/api/llm_handlers.go
-  - `/api/llm/query`（同期）、`/api/llm/stream`（SSE）、`/api/llm/models`
-  - internal/llm への委譲（OpenRouterクライアント、プロンプト整形、使用量集計）
-- internal/mcp/auth.go
-  - Authorization: Bearer `MCP-...` の検証（mcp_tokens ハッシュ照合、TTL/スコープ確認、lastUsedAt更新）
-- internal/mcp/rss_server.go
-  - JSON-RPC 2.0 ディスパッチ（`tools/list`, `tools/call`）と、llm.summarize/translate/ask のツール実装を internal/llm に委譲
-- internal/llm/openrouter_client.go, sse.go, prompts.go
-  - OpenRouter へのHTTP/ストリーム呼び出し、SSE応答、プロンプト定義
-- internal/rss/*
-  - 将来の RSS 関連ユーティリティ・ツール用の分離
-
-### 11.4 JSVM 代替（任意）
-
-```js path=null start=null
-/// pb_hooks/main.pb.js
-onBeforeServe((e) => {
-  const r = e.router
-  // /api は JSVMでも登録可能（必要に応じて）
-  // r.add("POST", "/api/llm/query", llmQueryHandler)
-
-  // /mcp/rss（JSON-RPC 2.0 ハンドラ）
-  r.add("POST", "/mcp/rss", jsonRpcHandler)
-})
-```
 
