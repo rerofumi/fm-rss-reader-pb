@@ -38,6 +38,7 @@
   <header>
     <h1>fm-rss-reader-pb | 認証とAPIテスト</h1>
     <div>
+      <a href="/rss.html" style="color:#9fb4ff; margin-right:12px; text-decoration:none;">RSS MCP テスター</a>
       <span id="authState" class="muted">未ログイン</span>
       <button id="logoutBtn" onclick="logout()" style="margin-left:8px; display:none;">ログアウト</button>
     </div>
@@ -63,6 +64,21 @@
       <div class="sep"></div>
       <div class="muted">成功時、以後のAPI呼び出しに Authorization: Bearer pbJWT を付与します。</div>
       <div id="loginMsg" class="mono"></div>
+    </section>
+
+    <section>
+      <h2>1.5) JWT ツール (PB 認証トークン)</h2>
+      <div class="row">
+        <div>
+          <div class="muted">現在の JWT (マスク表示)</div>
+          <div id="jwtMasked" class="mono"></div>
+        </div>
+        <div style="flex:0 0 auto; display:grid; gap:8px;">
+          <button onclick="copyJwtToClipboard()">JWT をコピー</button>
+          <button onclick="sendJwtToRss()">RSS テスターへ転送</button>
+        </div>
+      </div>
+      <div id="jwtMsg" class="mono"></div>
     </section>
 
     <section>
@@ -170,6 +186,7 @@
       document.getElementById('authState').textContent = '未ログイン';
       document.getElementById('logoutBtn').style.display = 'none';
     }
+    updateJwtUi();
   }
 
   function setMsg(id, text, isErr=false) {
@@ -213,6 +230,7 @@
     document.getElementById('authState').textContent = '未ログイン';
     document.getElementById('logoutBtn').style.display = 'none';
     setMsg('loginMsg', 'ログアウトしました');
+    updateJwtUi();
   }
 
   function authHeaders() {
@@ -348,6 +366,50 @@
     }
   }
 
+
+  function jwtMaskedText() {
+    const t = state.token || localStorage.getItem('pb_jwt') || sessionStorage.getItem('pb_jwt') || '';
+    if (!t) return '(なし)';
+    if (t.length <= 12) return t;
+    return t.slice(0, 6) + '...' + t.slice(-6);
+  }
+  function updateJwtUi() {
+    const el = document.getElementById('jwtMasked');
+    if (el) el.textContent = jwtMaskedText();
+  }
+  async function copyJwtToClipboard() {
+    const token = state.token || localStorage.getItem('pb_jwt') || sessionStorage.getItem('pb_jwt') || '';
+    const msgEl = document.getElementById('jwtMsg');
+    try {
+      if (!token) throw new Error('JWT がありません');
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(token);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = token; ta.style.position='fixed'; ta.style.left='-1000px';
+        document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      msgEl.textContent = 'JWT をクリップボードにコピーしました';
+      msgEl.className = 'mono ok';
+    } catch (err) {
+      msgEl.textContent = 'コピーに失敗: ' + String(err);
+      msgEl.className = 'mono err';
+    }
+  }
+  function sendJwtToRss() {
+    const token = state.token || localStorage.getItem('pb_jwt') || sessionStorage.getItem('pb_jwt') || '';
+    const msgEl = document.getElementById('jwtMsg');
+    if (!token) {
+      msgEl.textContent = 'JWT がありません';
+      msgEl.className = 'mono err';
+      return;
+    }
+    localStorage.setItem('pb_jwt_alt', token);
+    msgEl.textContent = 'RSS テスターへ転送しました (pb_jwt_alt に保存)';
+    msgEl.className = 'mono ok';
+    // ナビゲーション
+    window.location.href = '/rss.html';
+  }
 
   // ========== LLM ==========
   async function loadLLMModels() {

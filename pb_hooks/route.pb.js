@@ -57,13 +57,13 @@ routerAdd("DELETE", "/api/mcp/tokens/{id}", (e) => {
 
 // --- routing: MCP JSON-RPC endpoint
 routerAdd("POST", "/mcp/rss", (e) => {
-    // TODO: authenticate via MCP token (Bearer MCP-...)
-    // TODO: implement JSON-RPC 2.0 handling (mcp.initialize, mcp.shutdown, tools/list, tools/call)
-    return e.json(200, {
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32601, message: "Not implemented" }
-    })
+    try {
+        const server = require(`${__hooks}/rss_mcp_server.js`)
+        return server.handle(e)
+    } catch (err) {
+        const msg = (err && err.message) ? err.message : String(err)
+        return e.json(500, { jsonrpc: "2.0", id: null, error: { code: -32603, message: msg, data: {} } })
+    }
 })
 
 // --- routing: LLM Bridge API (REST)

@@ -64,7 +64,7 @@
 - URL: `POST /mcp/rss`
 - Content-Type: `application/json`
 - プロトコル: JSON-RPC 2.0
-- 認証: Bearer `MCP-<opaque token>`（MCP アクセストークン）
+- 認証: Bearer トークン（`MCP-<opaque token>` または PocketBase のユーザー JWT）。外部クライアントからは MCP トークンを推奨。
 
 ### 3.2 MCP アクセストークン
 - 目的: 外部の LLM アプリケーションがユーザーの権限で MCP に接続するためのトークン
@@ -86,20 +86,175 @@
 - `tools/list` → 呼び出し可能ツール一覧を返却
 - `tools/call` → 指定ツールの実行
 
-提供ツール（初期）：
-- `llm.summarize`
-  - params: { text: string, model?: string, maxTokens?: number, temperature?: number, language?: string }
-  - result: { summary: string, model: string, tokens: { prompt: number, completion: number } }
-- `llm.translate`
-  - params: { text: string, targetLang: string, model?: string, formality?: "default"|"more"|"less" }
-  - result: { translated: string, model: string }
-- `llm.ask`
-  - params: { question: string, context?: string, model?: string, maxTokens?: number, temperature?: number }
-  - result: { answer: string, model: string, citations?: Array<{ title?: string, url?: string }> }
+#### 3.3.0 レスポンスフォーマット（MCP 準拠）
+- 本実装では、`tools/call` の戻りを MCP の content 形式で返します。
+  - 例: `{"result": { "content": [ { "type": "text", "text": "<アプリ固有のJSON文字列>" } ] }}`
+  - アプリ固有のデータは JSON 文字列化して `content[0].text` に格納します。
 
-エラー（JSON-RPC）:
-- `{ "jsonrpc": "2.0", "id": <id>, "error": { "code": <int>, "message": "<string>", "data": { ... } } }`
-- 標準に準拠したコード（-32600, -32601, -32602, -32603 等）を使用
+### 3.3.1. 提供ツール（`tools/call` で呼び出し可能）
+
+MCPサーバーは、以下のツールを提供します。すべてのツールは、ユーザーの認証情報（MCPトークン）に基づいて動作し、そのユーザーに紐づくデータのみを操作します。
+
+#### ジャンル管理 (`genre.*`)
+
+##### `genre.list`
+- **説明**: ユーザーが登録したすべてのジャンルの一覧を取得します。
+- **引数**: なし
+- **戻り値**:
+  ```json
+  {
+    "genres": [
+      { "id": "genre_id_1", "name": "テクノロジー", "createdAt": "..." },
+      { "id": "genre_id_2", "name": "スポーツ", "createdAt": "..." }
+    ]
+  }
+  ```
+
+##### `genre.create`
+- **説明**: 新しいジャンルを作成します。
+- **引数**:
+  ```json
+  {
+    "name": "新しいジャンル名"
+  }
+  ```
+- **戻り値**:
+  ```json
+  {
+    "id": "new_genre_id",
+    "name": "新しいジャンル名",
+    "createdAt": "..."
+  }
+  ```
+
+##### `genre.update`
+- **説明**: 既存のジャンルの名前を変更します。
+- **引数**:
+  ```json
+  {
+    "id": "genre_id_to_update",
+    "name": "新しいジャンル名"
+  }
+  ```
+- **戻り値**:
+  ```json
+  {
+    "id": "genre_id_to_update",
+    "name": "新しいジャンル名",
+    "updatedAt": "..."
+  }
+  ```
+
+##### `genre.delete`
+- **説明**: 指定したジャンルを削除します。このジャンルに紐づくすべてのRSSフィードも削除されます。
+- **引数**:
+  ```json
+  {
+    "id": "genre_id_to_delete"
+  }
+  ```
+- **戻り値**:
+  ```json
+  {
+    "success": true
+  }
+  ```
+
+---
+
+#### RSSフィード管理 (`feed.*`)
+
+##### `feed.list`
+- **説明**: 指定したジャンルに登録されているRSSフィードの一覧を取得します。
+- **引数**:
+  ```json
+  {
+    "genreId": "genre_id_1"
+  }
+  ```
+- **戻り値**:
+  ```json
+  {
+    "feeds": [
+      { "id": "feed_id_1", "url": "https://example.com/rss1.xml", "title": "Example News 1", "createdAt": "..." },
+      { "id": "feed_id_2", "url": "https://example.com/rss2.xml", "title": "Example News 2", "createdAt": "..." }
+    ]
+  }
+  ```
+
+##### `feed.add`
+- **説明**: 指定したジャンルに新しいRSSフィードのURLを追加します。サーバー側でフィードを一度取得し、タイトルなどを自動設定します。
+- **引数**:
+  ```json
+  {
+    "genreId": "genre_id_1",
+    "url": "https://new-rss-feed.com/feed.xml"
+  }
+  ```
+- **戻り値**:
+  ```json
+  {
+    "id": "new_feed_id",
+    "url": "https://new-rss-feed.com/feed.xml",
+    "title": "（サーバーで取得したフィードのタイトル）",
+    "createdAt": "..."
+  }
+  ```
+
+##### `feed.remove`
+- **説明**: 指定したRSSフィードをジャンルから削除します。
+- **引数**:
+  ```json
+  {
+    "id": "feed_id_to_remove"
+  }
+  ```
+- **戻り値**:
+  ```json
+  {
+    "success": true
+  }
+  ```
+
+---
+
+#### 記事取得 (`articles.*`)
+
+##### `articles.fetchByGenre`
+- **説明**: 指定したジャンルに属するすべてのRSSフィードから記事を取得し、マージして時系列順（新しいものが先頭）に並べ替えたリストを返します。
+- **引数**:
+  ```json
+  {
+    "genreId": "genre_id_1",
+    "limit": 50 
+  }
+  ```
+- **戻り値**:
+  ```json
+  {
+    "articles": [
+      {
+        "title": "記事タイトル1",
+        "link": "https://example.com/article1",
+        "published": "2025-09-15T10:00:00Z",
+        "contentSnippet": "記事の冒頭部分...（最大400文字）",
+        "description": "記事の短いプレビュー（最大100文字）",
+        "feed": { "title": "フィードのタイトル", "url": "..." }
+      }
+    ]
+  }
+  ```
+
+##### `articles.fetchByUrl`
+- **説明**: 単一のRSSフィードURLから直接記事を取得します。この機能は、登録されていないフィードをプレビューする目的でも使用できます。
+- **引数**:
+  ```json
+  {
+    "url": "https://example.com/rss1.xml",
+    "limit": 50
+  }
+  ```
+- **戻り値**: `articles.fetchByGenre` と同様のアーティクルリスト。
 
 ### 3.4 バッチ/ストリーミング
 - JSON-RPC バッチ呼び出しはサポート
@@ -148,7 +303,7 @@
   - OpenRouter API キーは PocketBase サーバー側にのみ保存（環境変数 or Settings のサーバー専用領域）。環境変数名は `OPENROUTER_API_KEY` とする。
   - DB には保存しない（必要なら KMS 等で暗号化した上で PB 設定に保持）
 - 認可境界
-  - pbJWT → ユーザー自身の操作のみ許可
+  - `/mcp/rss` は Bearer（MCP トークン または pbJWT）を受け付ける。pbJWT はユーザー自身の操作のみ許可。
   - MCP トークン → 発行ユーザーの権限に限定、スコープ/TTL/失効対応
 - レート制限（例）
   - `/api/llm/*` および `/mcp/rss tools/call` をユーザー単位で 20 req/min（調整可）
@@ -176,14 +331,16 @@
 ## 7. データモデル（PocketBase コレクション）
 
 - `mcp_tokens`
-  - `id`: string (PB 既定)
-  - `userId`: string (users.id FK)
-  - `tokenHash`: string (bcrypt/scrypt/argon2)
-  - `scopes`: string[]
-  - `name`: string (任意識別子)
-  - `expiresAt`: datetime (nullable で無期限可)
-  - `createdAt`, `updatedAt`, `lastUsedAt`: datetime
-  - インデックス: (userId), (expiresAt), (lastUsedAt)
+  - フィールド（PocketBase 0.30 仕様・snake_case）
+    - `user`: relation -> users.id（所有者）
+    - `key_prefix`: text（一意。プレーンの先頭数文字を保存し、一覧識別に使用）
+    - `token_hash`: text（ハッシュのみ保存、プレーンは返さない）
+    - `scopes`: json（例: ["tools.call", "rss.read", "rss.write"]）
+    - `name`: text（任意識別子）
+    - `expires_at`: datetime（任意）
+    - `last_used_at`: datetime（任意）
+    - `created`, `updated`: datetime（システム）
+  - インデックス例: (user), UNIQUE(key_prefix), (token_hash), (expires_at), (last_used_at)
 - 備考
   - RSS フィード/ジャンル管理コレクションは別仕様（本書の主題外）
 
@@ -242,7 +399,7 @@
 }
 ```
 
-- JSON-RPC: tools/call（llm.summarize）
+- JSON-RPC: tools/call（articles.fetchByUrl）
 
 ```json
 {
@@ -250,14 +407,28 @@
   "id": "2",
   "method": "tools/call",
   "params": {
-    "name": "llm.summarize",
+    "name": "articles.fetchByUrl",
     "arguments": {
-      "text": "<記事本文>",
-      "model": "openai/gpt-4o-mini",
-      "maxTokens": 800,
-      "temperature": 0.3,
-      "language": "ja"
+      "url": "https://example.com/feed.xml",
+      "limit": 20
     }
+  }
+}
+```
+
+- JSON-RPC: tools/call 応答例（content[0].type = "text" に JSON 文字列を格納）
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "2",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"articles\": [ { \"title\": \"...\", \"link\": \"...\", \"published\": \"...\", \"description\": \"...\" } ]\n}"
+      }
+    ]
   }
 }
 ```
