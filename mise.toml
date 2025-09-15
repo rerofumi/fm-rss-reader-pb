@@ -9,3 +9,5 @@ go = "1.24"
 [tasks]
 up = "pocketbase.exe serve --dev --dir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_data --hooksDir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_hooks --migrationsDir E:\\programming\\AI_generative\\fm-rss-reader-pb\\pb_migrations"
 
+[env]
+_.file = '.env'

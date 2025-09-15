@@ -98,7 +98,7 @@
       <input id="llmTarget" placeholder="ja / en など" />
       <div style="margin-top:8px;" class="row">
         <button onclick="callLLM()">問い合わせ (query)</button>
-        <button id="llmStreamBtn" onclick="callLLMStream()">ストリーム (stream)</button>
+        <button id="llmStreamBtn" onclick="callLLMStream()" disabled title="未対応">ストリーム (stream)</button>
         <button id="llmStreamAbortBtn" onclick="abortLLMStream()" style="display:none;">中断</button>
       </div>
       <div class="sep"></div>
@@ -113,6 +113,14 @@
         <div id="llmStreamMeta" class="muted mono"></div>
       </div>
       <div id="llmMsg" class="mono"></div>
+
+      <div class="sep"></div>
+      <div class="row">
+        <button onclick="loadLLMModels()">モデル一覧取得</button>
+        <span class="muted">OpenRouter 上の利用可能モデル</span>
+      </div>
+      <div id="llmModelsMsg" class="mono"></div>
+      <div id="llmModelsList" class="list"></div>
     </section>
   </main>
 
@@ -342,13 +350,58 @@
 
 
   // ========== LLM ==========
+  async function loadLLMModels() {
+    setMsg('llmModelsMsg', 'モデル取得中...');
+    try {
+      const res = await fetch('/api/llm/models', { headers: authHeaders() });
+      const j = await safeJson(res);
+      if (!res.ok) throw new Error(JSON.stringify(j));
+      renderLLMModels(j.models || []);
+      setMsg('llmModelsMsg', 'OK');
+    } catch (e) {
+      setMsg('llmModelsMsg', 'エラー: ' + String(e), true);
+    }
+  }
+
+  function renderLLMModels(items) {
+    const list = document.getElementById('llmModelsList');
+    list.innerHTML = '';
+    if (!items || !items.length) {
+      const d = document.createElement('div');
+      d.className = 'muted';
+      d.textContent = 'モデルはありません';
+      list.appendChild(d);
+      return;
+    }
+    for (const m of items) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="mono">id: ${esc(m.id)}</div>
+        <div class="mono muted">name: ${esc(m.name || '')}</div>
+        ${m.description ? `<div class="mono muted">desc: ${esc(m.description)}</div>` : ''}
+        <div class="row">
+          <span></span>
+          <button onclick="document.getElementById('llmModel').value='${esc(m.id)}'">このモデルを設定</button>
+        </div>
+      `;
+      list.appendChild(card);
+    }
+  }
+
   async function callLLM() {
     setMsg('llmMsg', '問い合わせ中...');
     try {
       const type = document.getElementById('llmType').value;
       const model = document.getElementById('llmModel').value.trim();
-      const text = document.getElementById('llmText').value;
+      const text = document.getElementById('llmText').value.trim();
       const targetLang = document.getElementById('llmTarget').value.trim();
+
+      // Simple client-side validation
+      if ((type === 'ask' || type === 'summarize' || type === 'translate') && !text) {
+        setMsg('llmMsg', '本文/質問を入力してください', true);
+        return;
+      }
 
       const payload = {};
       if (type === 'summarize') {
@@ -356,7 +409,7 @@
       } else if (type === 'translate') {
         payload.text = text; payload.targetLang = targetLang || 'ja';
       } else if (type === 'ask') {
-        payload.question = text;
+        payload.question = text; // server also accepts payload.text fallback
       }
 
       const body = { type, payload };
@@ -370,7 +423,13 @@
       const j = await safeJson(res);
       if (!res.ok) throw new Error(JSON.stringify(j));
 
-      document.getElementById('llmResultText').textContent = j.result ?? '';
+      if (typeof j.result === 'string') {
+        document.getElementById('llmResultText').textContent = j.result ?? '';
+      } else if (j.error) {
+        document.getElementById('llmResultText').textContent = JSON.stringify(j.error);
+      } else {
+        document.getElementById('llmResultText').textContent = JSON.stringify(j, null, 2);
+      }
       document.getElementById('llmMeta').textContent = JSON.stringify({ model: j.model, usage: j.usage }, null, 2);
       setMsg('llmMsg', 'OK');
     } catch (e) {
@@ -381,162 +440,10 @@
   // ========== LLM Stream ==========
   // Call the streaming LLM API endpoint
   async function callLLMStream() {
-    // Reset previous stream result
-    document.getElementById('llmStreamResultText').textContent = '';
-    document.getElementById('llmStreamMeta').textContent = '';
-    document.getElementById('llmStreamResult').style.display = '';
-    setMsg('llmMsg', 'ストリーム問い合わせ中...');
-
-    // Disable buttons and show abort button
-    document.getElementById('llmStreamBtn').disabled = true;
-    document.getElementById('llmStreamAbortBtn').style.display = '';
-
-    try {
-      const type = document.getElementById('llmType').value;
-      const model = document.getElementById('llmModel').value.trim();
-      const text = document.getElementById('llmText').value;
-      const targetLang = document.getElementById('llmTarget').value.trim();
-
-      const payload = {};
-      if (type === 'summarize') {
-        payload.text = text;
-      } else if (type === 'translate') {
-        payload.text = text; payload.targetLang = targetLang || 'ja';
-      } else if (type === 'ask') {
-        payload.question = text;
-      }
-
-      const body = { type, payload };
-      if (model) body.model = model;
-
-      // Create AbortController to allow cancellation
-      state.abortController = new AbortController();
-      const { signal } = state.abortController;
-
-      const res = await fetch('/api/llm/stream', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify(body),
-        signal // Pass the signal to the fetch request
-      });
-
-      if (!res.ok) {
-        const errorData = await safeJson(res);
-        throw new Error(JSON.stringify(errorData));
-      }
-
-      if (!res.body) {
-        throw new Error('ReadableStream not supported or not available in this response');
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      let resultText = '';
-      let finalModel = model || 'openrouter/auto'; // Default model name
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            // Stream finished
-            setMsg('llmMsg', 'ストリーム完了');
-            break;
-          }
-
-          // Decode the received chunk
-          const chunk = decoder.decode(value, { stream: true });
-          // Process the chunk for SSE events
-          const lines = chunk.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              // We can ignore the event type line if we process data lines directly
-              // const eventType = line.substring(7);
-            } else if (line.startsWith('data: ')) {
-              const dataStr = line.substring(6);
-              if (dataStr === '{}') {
-                // This is the "done" event data
-                setMsg('llmMsg', 'ストリーム完了');
-                continue;
-              }
-
-              // Check if dataStr is not empty and not just whitespace
-              const trimmedDataStr = dataStr.trim();
-              if (!trimmedDataStr) {
-                  // Empty or whitespace-only data line, skip
-                  continue;
-              }
-
-              let data;
-              try {
-                data = JSON.parse(trimmedDataStr);
-              } catch (parseErr) {
-                console.error('Failed to parse SSE data:', trimmedDataStr, parseErr);
-                // If parsing fails, treat the raw dataStr as a text message
-                // This handles cases where the backend sends plain text chunks
-                resultText += trimmedDataStr;
-                document.getElementById('llmStreamResultText').textContent = resultText;
-                const textArea = document.getElementById('llmStreamResultText');
-                textArea.scrollTop = textArea.scrollHeight;
-                continue;
-              }
-
-              if (data.error) {
-                // Handle error event
-                throw new Error(JSON.stringify(data.error));
-              } else if (data.usage) {
-                // Handle metadata event
-                finalModel = data.model || finalModel;
-                const usageInfo = { model: finalModel, usage: data.usage };
-                document.getElementById('llmStreamMeta').textContent = JSON.stringify(usageInfo, null, 2);
-              } else {
-                // Handle message event (assuming text content is in data)
-                // The data structure depends on your backend. If it's just a string:
-                // resultText += data;
-                // If it's an object like { content: "..." }, adjust accordingly.
-                // Based on our backend implementation, it sends "data: "content_part"\n"
-                // So `data` here is the string content.
-                if (typeof data === 'string') {
-                  resultText += data;
-                  document.getElementById('llmStreamResultText').textContent = resultText;
-                  // Scroll to bottom of the text area
-                  const textArea = document.getElementById('llmStreamResultText');
-                  textArea.scrollTop = textArea.scrollHeight;
-                } else {
-                  // If data is an object, e.g., { content: "..." }
-                  // This part depends on how your backend structures the message event data
-                  // For now, we assume it's a plain string.
-                  console.warn('Unexpected data format in message event:', data);
-                  // Fallback: stringify the object and append
-                  const dataStrFallback = JSON.stringify(data);
-                  resultText += dataStrFallback;
-                  document.getElementById('llmStreamResultText').textContent = resultText;
-                  const textArea = document.getElementById('llmStreamResultText');
-                  textArea.scrollTop = textArea.scrollHeight;
-                }
-              }
-            }
-            // Ignore other lines (e.g., comments, empty lines)
-          }
-        }
-      } catch (streamErr) {
-        if (streamErr.name === 'AbortError') {
-          setMsg('llmMsg', 'ストリーム中断されました', true);
-        } else {
-          throw streamErr; // Re-throw other errors
-        }
-      } finally {
-        reader.releaseLock();
-      }
-    } catch (e) {
-      setMsg('llmMsg', 'ストリームエラー: ' + String(e), true);
-      document.getElementById('llmStreamResult').style.display = 'none';
-    } finally {
-      // Re-enable buttons and hide abort button
-      document.getElementById('llmStreamBtn').disabled = false;
-      document.getElementById('llmStreamAbortBtn').style.display = 'none';
-      state.abortController = null;
-    }
+    // SSE は PocketBase JSVM の制約により未対応とします。
+    setMsg('llmMsg', 'ストリームは現在未対応です', true);
+    document.getElementById('llmStreamResult').style.display = 'none';
+    return;
   }
 
   // Abort the ongoing LLM stream request

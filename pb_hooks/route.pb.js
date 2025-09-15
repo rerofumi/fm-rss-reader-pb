@@ -35,7 +35,6 @@ routerAdd("POST", "/api/mcp/tokens", (e) => {
 
 // トークン一覧
 routerAdd("GET", "/api/mcp/tokens", (e) => {
-    console.log("###")
     try {
         const MCPTokenManager = require(`${__hooks}/mcp_token_manager.js`)
         return MCPTokenManager.listTokens(e)
@@ -69,19 +68,49 @@ routerAdd("POST", "/mcp/rss", (e) => {
 
 // --- routing: LLM Bridge API (REST)
 routerAdd("POST", "/api/llm/query", (e) => {
-    // Auth: pbJWT required
-    // Body: { type, payload, model?, options? }
-    return e.json(501, { error: { code: "not_implemented", message: "LLM query is not implemented yet" } })
+    try {
+        // Bind via manual JSON parse to avoid strict DynamicModel binding issues.
+        const raw = toString(e.request.body, 1024 * 1024);
+        let body = {};
+        try {
+            body = JSON.parse(raw || '{}');
+        } catch (parseErr) {
+            throw new BadRequestError("invalid JSON body");
+        }
+
+        const type = String((body && body.type) ? body.type : "").trim();
+        const payload = (body && typeof body.payload === 'object' && body.payload) ? body.payload : {};
+        const model = (body && body.model) ? body.model : "";
+        const options = (body && typeof body.options === 'object' && body.options) ? body.options : {};
+        if (!type) throw new BadRequestError("type is required");
+
+        const bridge = require(`${__hooks}/llm_bridge.js`);
+        const out = bridge.callOpenRouter(type, payload, model, options);
+        return e.json(200, out);
+    } catch (err) {
+        const msg = (err && err.message) ? err.message : String(err);
+        const code = (err instanceof BadRequestError) ? 400
+            : (err instanceof UnauthorizedError) ? 401
+            : (err instanceof ForbiddenError) ? 403
+            : (err instanceof TooManyRequestsError) ? 429
+            : 500;
+        return e.json(code, { error: { code: "llm.query_failed", message: msg, details: {} } });
+    }
 }, $apis.requireAuth("users"))
 
-routerAdd("POST", "/api/llm/stream", (e) => {
-    // Auth: pbJWT required
-    // SSE: Accept: text/event-stream (TODO)
-    return e.json(501, { error: { code: "not_implemented", message: "LLM stream is not implemented yet" } })
-}, $apis.requireAuth("users"))
 
 routerAdd("GET", "/api/llm/models", (e) => {
-    // Auth: pbJWT required
-    // Optional endpoint: return allowed/available models
-    return e.json(200, { models: [] })
-}, $apis.requireAuth("users"))
+    try {
+        const bridge = require(`${__hooks}/llm_bridge.js`)
+        const models = bridge.listModels()
+        return e.json(200, { models })
+    } catch (err) {
+        const msg = (err && err.message) ? err.message : String(err)
+        const code = (err instanceof BadRequestError) ? 400
+            : (err instanceof UnauthorizedError) ? 401
+            : (err instanceof ForbiddenError) ? 403
+            : (err instanceof TooManyRequestsError) ? 429
+            : 500
+        return e.json(code, { error: { code: "llm.models_failed", message: msg, details: {} } })
+    }
+}, $apis.requireAuth("_superusers", "users"))
