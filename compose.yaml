@@ -1,0 +1,11 @@
+services:
+  rssreader:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: always
+    ports:
+      - "26080:8090"
+    environment:
+       - OPENROUTER_API_KEY=xxxDUMMYxxx
+
