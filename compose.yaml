@@ -6,6 +6,8 @@ services:
     restart: always
     ports:
       - "26080:8090"
+    volumes:
+      - ./pb_data:/app/pb_data
     environment:
        - OPENROUTER_API_KEY=xxxDUMMYxxx
 
