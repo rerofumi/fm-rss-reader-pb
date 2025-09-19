@@ -24,6 +24,9 @@ RUN npm run build
 # ステージ2: 本番環境
 FROM debian:stable-slim
 
+RUN apt update
+RUN apt install -y curl
+
 RUN mkdir -p /app
 WORKDIR /app
 
