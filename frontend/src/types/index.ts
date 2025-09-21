@@ -23,9 +23,25 @@ export type Article = {
 
 export type LlmQueryType = 'summarize' | 'translate' | 'ask'
 
+export type ClipOptions = {
+  maxBytes?: number
+  maxChars?: number
+}
+
+export type LlmQueryPayload = {
+  // Existing fields
+  text?: string
+  context?: string
+  question?: string
+  targetLang?: string
+  // New optional fields for server-side article fetch & clip
+  articleUrl?: string
+  clip?: ClipOptions
+}
+
 export type LlmQueryRequest = {
   type: LlmQueryType
-  payload: Record<string, unknown>
+  payload: LlmQueryPayload
   model?: string
   options?: { maxTokens?: number; temperature?: number; topP?: number }
 }

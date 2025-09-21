@@ -4,6 +4,162 @@
 
 let __OPENROUTER_API_KEY_CACHE = null;
 
+// ---- Article fetch & clip helpers ----
+const __DEFAULT_CLIP = {
+  maxBytes: 524288,   // 512 KB
+  maxChars: 12000,    // 12k chars
+  timeoutMs: 12000,   // 12s
+  maxRedirects: 3,
+};
+
+function __clamp(n, min, max) {
+  n = n | 0;
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
+
+function __sanitizeClip(opts) {
+  const o = Object.assign({}, __DEFAULT_CLIP, opts || {});
+  o.maxBytes = __clamp(o.maxBytes || 0, 65536, 1048576);   // 64KB .. 1MB
+  o.maxChars = __clamp(o.maxChars || 0, 2000, 20000);      // 2k .. 20k
+  o.timeoutMs = __clamp(o.timeoutMs || 0, 3000, 20000);
+  o.maxRedirects = __clamp(o.maxRedirects || 0, 0, 5);
+  return o;
+}
+
+function __lowerHeaders(h) {
+  const out = {};
+  if (h && typeof h === 'object') {
+    for (const k in h) {
+      try { out[String(k).toLowerCase()] = h[k]; } catch (_) {}
+    }
+  }
+  return out;
+}
+
+function __getHeader(headers, name) {
+  const h = headers || {};
+  const key = String(name).toLowerCase();
+  const v = h[key];
+  if (v == null) return '';
+  return String(v);
+}
+
+function __decodeEntities(s) {
+  if (!s) return '';
+  const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+  return String(s).replace(/&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);/g, (m, g1) => {
+    try {
+      if (!g1) return m;
+      if (g1[0] === '#') {
+        if ((g1[1] || '').toLowerCase() === 'x') {
+          const cp = parseInt(g1.slice(2), 16);
+          return Number.isFinite(cp) ? String.fromCodePoint(cp) : '';
+        }
+        const cp = parseInt(g1.slice(1), 10);
+        return Number.isFinite(cp) ? String.fromCodePoint(cp) : '';
+      }
+      return Object.prototype.hasOwnProperty.call(named, g1) ? named[g1] : m;
+    } catch (_) { return m; }
+  });
+}
+
+function __htmlToText(html) {
+  let s = String(html || '');
+  // Hint line breaks around common block elements
+  s = s.replace(/<(\/)?(p|div|br|li|h[1-6]|section|article|header|footer)\b[^>]*>/gi, '\n$1');
+  // Remove script/style/noscript blocks
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, '');
+  s = s.replace(/<style[\s\S]*?<\/style>/gi, '');
+  s = s.replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
+  // Remove all tags
+  s = s.replace(/<[^>]+>/g, '');
+  // Decode entities and normalize whitespace
+  s = __decodeEntities(s);
+  s = s.replace(/\r/g, '\n');
+  s = s.replace(/[ \t\f\v]+/g, ' ');
+  s = s.replace(/\n{3,}/g, '\n\n');
+  s = s.split('\n').map(l => l.trim()).join('\n');
+  s = s.replace(/[ \t]{2,}/g, ' ');
+  return s.trim();
+}
+
+function __fetchAndClipArticle(url, clipOpts) {
+  if (!url || typeof url !== 'string') return { text: '', truncated: false };
+  const clip = __sanitizeClip(clipOpts);
+  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
+
+  let current = url;
+  let redirects = 0;
+
+  try {
+    while (redirects <= clip.maxRedirects) {
+      const res = $http.send({
+        method: 'GET',
+        url: current,
+        headers: {
+          'User-Agent': UA,
+          'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9,ja;q=0.8',
+        },
+        timeout: Math.max(clip.timeoutMs, 1),
+      });
+
+      const status = res?.statusCode || res?.status || 0;
+      const headers = __lowerHeaders(res?.headers || {});
+
+      // Handle redirects
+      if (status >= 300 && status < 400) {
+        const loc = __getHeader(headers, 'location');
+        if (!loc) break;
+        try {
+          const resolved = new URL(loc, current).toString();
+          current = resolved;
+          redirects++;
+          continue;
+        } catch (_) {
+          break;
+        }
+      }
+
+      if (status < 200 || status >= 300) {
+        return { text: '', truncated: false };
+      }
+
+      const ct = __getHeader(headers, 'content-type');
+      if (!/^text\/html/i.test(ct)) {
+        return { text: '', truncated: false };
+      }
+
+      let raw = '';
+      try {
+        raw = toString(res.body);
+      } catch (_) {
+        try { raw = String(res.body || ''); } catch (_) { raw = ''; }
+      }
+      if (!raw) return { text: '', truncated: false };
+
+      if (raw.length > clip.maxBytes) {
+        raw = raw.slice(0, clip.maxBytes);
+      }
+
+      let text = __htmlToText(raw);
+      let truncated = false;
+      if (text.length > clip.maxChars) {
+        text = text.slice(0, clip.maxChars);
+        truncated = true;
+      }
+
+      try { $app.logger().info(`llm_bridge: fetched article ok, htmlLen=${raw.length}, textLen=${text.length}, truncated=${truncated}`); } catch (_) {}
+      return { text, truncated };
+    }
+  } catch (e) {
+    try { $app.logger().warn(`llm_bridge: fetch failed for ${url}: ${e && e.message ? e.message : e}`); } catch (_) {}
+  }
+  return { text: '', truncated: false };
+}
+
 function ensureApiKey() {
   if (__OPENROUTER_API_KEY_CACHE) return __OPENROUTER_API_KEY_CACHE;
 
@@ -128,6 +284,27 @@ function extractResult(json) {
 
 function callOpenRouter(type, payload, model, options) {
   const apiKey = ensureApiKey();
+
+  // If summarize/ask and articleUrl present, try to fetch and clip the article.
+  try {
+    const p = (payload && typeof payload === 'object') ? payload : {};
+    const t = String(type || '');
+    const url = String(p.articleUrl || '').trim();
+    if (url && (t === 'summarize' || t === 'ask')) {
+      const clip = (p.clip && typeof p.clip === 'object') ? p.clip : undefined;
+      const out = __fetchAndClipArticle(url, clip);
+      if (out && typeof out.text === 'string' && out.text.trim()) {
+        if (t === 'summarize') {
+          p.text = out.text;
+        } else if (t === 'ask') {
+          p.context = out.text;
+        }
+      }
+    }
+  } catch (_) {
+    // Swallow and fall back silently to provided text/context
+  }
+
   const messages = buildMessages(type, payload);
   const req = {
     model: model || 'openrouter/auto',

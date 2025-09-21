@@ -27,7 +27,10 @@ export const useLlmStore = create<LlmState>((set, get) => ({
     try {
       const result = await llmService.query({
         type: 'summarize',
-        payload: { text: article.contentSnippet || article.description || article.title },
+        payload: { 
+          text: article.contentSnippet || article.description || article.title,
+          articleUrl: article.link,
+        },
       });
       
       if (!controller.signal.aborted) {
@@ -80,7 +83,8 @@ export const useLlmStore = create<LlmState>((set, get) => ({
         type: 'ask',
         payload: { 
           question,
-          context: article.contentSnippet || article.description || article.title
+          context: article.contentSnippet || article.description || article.title,
+          articleUrl: article.link,
         },
       });
       
