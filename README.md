@@ -1,85 +1,118 @@
-#
+# fm-rss-reader-pb
 
-バックエンドにpocketbaseを使用したRSS Readerです。RSSの読み込みや管理部分はMCP serverのtoolsとして定義しているためブラウザフロントエンドでの利用はもちろん、LLMエージェントからの利用も可能です。
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## システム構成
+<p align="center">
+  <img src="images/Screenshot_01.png" alt="FM RSS Reader screenshot" width="100%" />
+</p>
+**FM RSS Reader** は、個人利用に最適化された高機能なRSSリーダーアプリケーションです。バックエンドに [PocketBase](https://pocketbase.io/) を採用し、RSSフィードの収集・表示、AI(LLM)による記事の要約や翻訳、さらにはLLMエージェントから操作可能な [MCP (Model Context Protocol)](https://github.com/rerofumi/mcp) サーバー機能を統合しています。
 
-バックエンド
-- PocketBase + javascript extention
-  - 認証、DB、APIをPocketBaseで実装しています
-フロントエンド
-- Vite+React
-MCP server
-- MCP RSS tools
-- MCP token manager、フロントエンドにtoken発行
+---
 
-## 実行方法
+## ✨ 主な機能
 
-### docker container のビルド、起動(推奨)
+- **RSSフィード管理**:
+    - **ジャンル**: ニュース、ブログ、技術情報など、フィードを自由に分類・管理できます。
+    - **フィード登録**: ジャンルごとに複数のRSSフィードURLを簡単に登録・編集・削除できます。
+- **高機能RSSリーダー**:
+    - **タブUI**: ジャンルごとにタブが分かれており、読みたいカテゴリの記事へ素早くアクセスできます。
+    - **時系列表示**: 記事は常に新しいものが一番上に表示され、最新情報を逃しません。
+- **AIアシスタント連携**:
+    - **記事の要約**: 長文の記事もワンクリックで要点を把握できます。
+    - **記事の翻訳**: 外国語の記事も手軽に翻訳して読めます。
+    - **自由な質疑応答**: 記事の内容について、対話形式でAIに質問できます。
+- **MCPサーバー機能**:
+    - **LLMエージェント連携**: 外部のLLMエージェントがアプリケーションを操作するためのAPIを提供します。
+    - **セキュアなトークン管理**: フロントエンドから安全にMCPアクセストークンを発行・管理できます。
+- **堅牢なユーザー認証**:
+    - PocketBaseによる安全なアカウント管理。ログイン情報はセッションで維持されます。
 
-`compose.yaml`ファイル内に OPENROUTER_API_KEY を設定する箇所があるので、それを設定してください。
-(API キー が無くても AI assist が使えないだけで RSS reader 自体は動作します)
+## 🖥️ 画面構成
 
-コンテナをビルドした後 docker compose でコンテナを起動します。
+アプリケーションは、直感的に操作できる3つの主要ページで構成されています。
 
-```
-docker compose build
-docker compose up -d
-```
+1.  **RSSリーダーページ**:
+    - アプリケーションのメイン画面です。上部のタブでジャンルを切り替え、効率的に記事を閲覧できます。
+2.  **管理ページ**:
+    - RSSジャンルやフィードURLの登録・編集、MCPアクセストークンの発行など、すべての設定をこのページで一元管理します。
+3.  **ログインページ**:
+    - 安全なアクセスを保証するための認証ページです。未ログイン時は自動的にこちらにリダイレクトされます。
 
-### 開発環境、ローカル実行
+## 🛠️ 技術スタック
 
-pocketbase の実行バイナリをパスの通ったところに配置します。このリポジトリトップに pocketbase のバイナリを置いておくでも良いです。
+本プロジェクトは、モダンで信頼性の高い技術を組み合わせて構築されています。
 
-まずフロントエンドをビルドします。
-frontend ディレクトリに移動し以下を実行します。
+- **バックエンド**:
+    - **[PocketBase](https://pocketbase.io/)**: データベース、ユーザー認証、API、静的ファイル配信を単一の実行ファイルで実現。
+- **フロントエンド**:
+    - **Framework**: [Vite](https://vitejs.dev/) + [React](https://react.dev/)
+    - **Language**: [TypeScript](https://www.typescriptlang.org/)
+    - **State Management**: [Zustand](https://github.com/pmndrs/zustand)
+    - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **LLMプロバイダ**:
+    - **[OpenRouter](https://openrouter.ai/)**: 複数の大規模言語モデルを透過的に利用。
 
-```
-npm install
-npm build
-```
+## 🚀 実行方法
 
-"dist" ディレクトリにビルドされたファイルができているので、dist 以下を `pb_public` の下に移動します。
+### 1. Dockerコンテナでの起動 (推奨)
 
-環境変数 `OPENROUTER_API_KEY` に OpenRouter の API キー を設定します。(API キー が無くても AI assist が使えないだけで RSS reader 自体は動作します)
+最も簡単で推奨される起動方法です。
 
-`fm-rss-reader-pb` ディレクトリ直下で pocketbase を起動します。起動時に `pd_data`, `pd_hooks`, `pb_migrations`, `pb_public` のディレクトリを指定すると確実です。
+1.  `compose.yaml` ファイルを開き、`environment` セクションにある `OPENROUTER_API_KEY` にご自身の [OpenRouter](https://openrouter.ai/) APIキーを設定します。
+    *(APIキーがなくてもAI連携機能以外は動作します)*
 
-```
-pocketbase serve --dir (path)pb_data --hooksDir (path)pb_hooks --migrationsDir (path)pb_migrations --publicDir (path)pb_public
-```
+2.  以下のコマンドを実行して、コンテナをビルドし、バックグラウンドで起動します。
+    ```bash
+    docker compose build
+    docker compose up -d
+    ```
 
-この状態で http サーバーが起動しているので `nttp://localhost:8090/` にアクセスします。
+3.  ブラウザで `http://localhost:8090/` にアクセスします。
 
-#### フロントエンド開発
+### 2. ローカル環境での開発実行
 
-pocketbase はあらかじめ起動しておきます。
-`frontend` ディレクトリ下に移動し、`.env.example` を `.env` にコピーして作成します。
+開発やカスタマイズを行う場合は、以下の手順でローカル環境をセットアップします。
 
-その状態で `npm run dev` を実行すると開発版の frontend が pocketbase とは別に起動します。ポートは `8080`。
+1.  **PocketBaseのセットアップ**:
+    - [PocketBaseの公式サイト](https://pocketbase.io/docs/) から実行バイナリをダウンロードし、パスの通ったディレクトリに配置します。
 
-port 8080 にアクセスした状態で frontend を開発していきます。
+2.  **フロントエンドのビルド**:
+    - `frontend` ディレクトリに移動し、必要なパッケージをインストールしてビルドします。
+    ```bash
+    cd frontend
+    npm install
+    npm run build
+    ```
+    - ビルドされた資材 (`frontend/dist` ディレクトリの中身) を `pb_public` ディレクトリにコピーします。
 
-### MCP server access
+3.  **環境変数の設定**:
+    - 環境変数 `OPENROUTER_API_KEY` にAPIキーを設定します。
 
-docker、開発環境のどちらでも良いですがブラウザでRSS readerにログインして動作できる環境を用意します。
-setting ページの中にMCP tokenタブがあり、そこでMCPアクセス用のトークンを作成できます。
+4.  **サーバーの起動**:
+    - プロジェクトのルートディレクトリで以下のコマンドを実行し、PocketBaseサーバーを起動します。
+    ```bash
+    pocketbase serve --dir pb_data --hooksDir pb_hooks --migrationsDir pb_migrations --publicDir pb_public
+    ```
+    *(パスは環境に応じて適宜調整してください)*
 
-エージェントアプリのMCP settingでHTTP接続を選び、RSS readerへのURLを設定します。HTTPアクセスヘッダー情報に"Authorization"を追加し、そこにMCP tokenをアクセスキーとして設定します。
+5.  ブラウザで `http://localhost:8090/` にアクセスします。
 
-```
-Authorization: "Bearer MCP-xxxxxTOKENxxxxxxx"
-```
+### ⚙️ 初回起動時の設定
 
-### 共通、pocketbase 初回起動
+1.  `pb_data` ディレクトリが存在しない状態で初めてPocketBaseを起動すると、コンソールに管理者アカウント作成用のURLが表示されます。
+2.  表示されたURLにアクセスし、管理者用のE-mailとパスワードを登録してスーパーユーザーを作成します。
+3.  作成した管理者アカウントで管理コンソール (`http://localhost:8090/_/`) にログインします。
+4.  RSSリーダーを利用するための一般ユーザーアカウントを1つ作成してください。
 
-`pb_data`ディレクトリおよびpocketbaseのDBファイルが存在しない場合、pocketbaseの起動時に`pb_data`が作られ、その中に必要なファイルが作られます。
+## 🤖 MCPサーバーへのアクセス
 
-そういった初回起動時、pocketbaseにはアカウントが作成されず管理パネルに誰もアクセスできないため、スーパーユーザー作成用のsecret token urlがコンソールに表示されています。
-このコンソールに表示されたURLにアクセスするとスーパーユーザーのE-Mailとpassword登録画面が表示されるので、まずsuper userを作成します。
+1.  ブラウザでRSSリーダーにログインし、「管理 (Settings)」ページに移動します。
+2.  「MCP Token」タブから、LLMエージェントがアクセスするためのトークンを発行します。
+3.  エージェント側の設定で、HTTP接続先としてこのアプリケーションのURL (`http://localhost:8090`) を指定し、HTTPヘッダーに以下のようにAuthorization情報を追加します。
 
-super userでpocketbase管理コンソール`http://localhost:8090/_/`にアクセスすることができます。
-pocketbaseコンソールの詳細説明は省きますが、RSS Readerを利用する通常ユーザーは一人作成しておいてください。
+    ```
+    Authorization: "Bearer <発行したMCPトークン>"
+    ```
 
 ## 📄 ライセンス
 
@@ -87,5 +120,6 @@ pocketbaseコンソールの詳細説明は省きますが、RSS Readerを利用
 
 ## 👤 作者
 
-- **rerofumi** - [GitHub](https://github.com/rerofumi) - rero2@yuumu.org
-
+- **rerofumi**
+    - [GitHub](https://github.com/rerofumi)
+    - rero2@yuumu.org
