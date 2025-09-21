@@ -1,5 +1,6 @@
 import type { LlmQueryRequest, LlmQueryResponse } from '@/types';
 import { authService } from './authService';
+import { buildApiUrl } from './apiUrl';
 
 const DEFAULT_MODEL = 'openai/gpt-oss-20b:free';
 
@@ -16,7 +17,7 @@ export const llmService = {
       model: model,
     };
 
-    const response = await fetch(`/api/llm/query`, {
+    const response = await fetch(buildApiUrl(`/api/llm/query`), {
       method: 'POST',
       headers: authService.getAuthHeaders(),
       body: JSON.stringify(requestWithModel),
@@ -31,7 +32,7 @@ export const llmService = {
   },
 
   async getModels(): Promise<string[]> {
-    const response = await fetch(`/api/llm/models`, {
+    const response = await fetch(buildApiUrl(`/api/llm/models`), {
       method: 'GET',
       headers: authService.getAuthHeaders(),
     });

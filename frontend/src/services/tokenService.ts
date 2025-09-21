@@ -1,9 +1,10 @@
 import type { McpToken } from '@/types';
 import { authService } from './authService';
+import { buildApiUrl } from './apiUrl';
 
 export const tokenService = {
   async list(): Promise<McpToken[]> {
-    const response = await fetch(`/api/mcp/tokens`, {
+    const response = await fetch(buildApiUrl(`/api/mcp/tokens`), {
       method: 'GET',
       headers: authService.getAuthHeaders(),
     });
@@ -21,7 +22,7 @@ export const tokenService = {
     scopes?: string[];
     expiresAt?: string;
   }): Promise<{ token: string; id: string; expiresAt?: string }> {
-    const response = await fetch(`/api/mcp/tokens`, {
+    const response = await fetch(buildApiUrl(`/api/mcp/tokens`), {
       method: 'POST',
       headers: authService.getAuthHeaders(),
       body: JSON.stringify(params),
@@ -36,7 +37,7 @@ export const tokenService = {
   },
 
   async remove(id: string): Promise<void> {
-    const response = await fetch(`/api/mcp/tokens/${id}`, {
+    const response = await fetch(buildApiUrl(`/api/mcp/tokens/${id}`), {
       method: 'DELETE',
       headers: authService.getAuthHeaders(),
     });

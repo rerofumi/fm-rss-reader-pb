@@ -1,10 +1,11 @@
 import type { Genre, Feed, Article } from '@/types';
 import { authService } from './authService';
+import { buildApiUrl } from './apiUrl';
 
 const MCP_ENDPOINT = `/mcp/rss`;
 
 async function callMcp(name: string, args: Record<string, unknown> = {}) {
-  const response = await fetch(MCP_ENDPOINT, {
+  const response = await fetch(buildApiUrl(MCP_ENDPOINT), {
     method: 'POST',
     headers: authService.getAuthHeaders(),
     body: JSON.stringify({

@@ -1,7 +1,9 @@
 
+import { buildApiUrl } from './apiUrl';
+
 export const authService = {
   async login(identity: string, password: string) {
-    const response = await fetch(`/api/collections/users/auth-with-password`, {
+    const response = await fetch(buildApiUrl(`/api/collections/users/auth-with-password`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -33,7 +35,7 @@ export const authService = {
 
     try {
       // トークンが有効かどうかを確認するために、認証が必要なエンドポイントを呼び出す
-      const response = await fetch(`/api/mcp/tokens`, {
+      const response = await fetch(buildApiUrl(`/api/mcp/tokens`), {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
