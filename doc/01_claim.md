@@ -58,7 +58,7 @@
     - 状態管理には [Zustand](https://github.com/pmndrs/zustand) を利用すること。
     - スタイリングには [Tailwind CSS](https://tailwindcss.com/) を利用すること。
 - **LLMプロバイダ**:
-    - OpenRouter を利用すること。
+    - OpenAI API 互換サービスを利用すること。
 
 ## 3.2. セキュリティ
 

@@ -14,7 +14,7 @@
 アプリの設定や購読RSSの管理、MCPアクセストークンの取得はフロントエンドからしか行えない
 
 バックエンドは pocketbase を使用。DB, Auth, static serve, サーバーAPI を担う。
-LLM プロバイダは Openrouter を使用
+LLM プロバイダは OpenAI API 互換サービスを使用
 LLM API key は pocketbase の secret に設定、LLM プロバイダへのアクセスはバックエンドに持たせる
 CORS 対応のため RSS の読み込みもバックエンド側で行い、MCP で結果としてのリストを受け取る形
 RSS そのもののデータはキャッシュせず、毎回読みに行ってリストを作成する形で良い

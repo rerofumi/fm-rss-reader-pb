@@ -4,11 +4,11 @@
 
 - PocketBase auth による認証と JWT セッション
 - Model Context Protocol (MCP) 仕様の JSON-RPC インターフェース API
-- LLM 問い合わせ Bridge API（OpenRouter 経由）
+- LLM 問い合わせ Bridge API（OpenAI API 互換サービス経由）
 
 前提:
 - バックエンドは PocketBase を中核に、静的フロントエンド配信、ユーザー認証、カスタム API（RSS 取得や LLM 連携）を提供する。
-- LLM プロバイダは OpenRouter を利用し、API キーは PocketBase のサーバー側にのみ保持する（フロント非公開）。
+- LLM プロバイダは OpenAI API 互換サービスを利用し、API キーは PocketBase のサーバー側にのみ保持する（フロント非公開）。
 - RSS 表示は都度リアルタイム取得（サーバー側実行）でキャッシュしない（本仕様書の主題は3要素だが、設計整合のため明示）。
 
 ---
@@ -18,7 +18,7 @@
 - コンポーネント
   - PocketBase（PB）: 認証、DB、静的配信、サーバー API 実行コンテキスト
   - Custom API（PB のルーター拡張）: MCP JSON-RPC、LLM Bridge
-  - OpenRouter: LLM 呼び出しの外部依存
+  - OpenAI API 互換サービス: LLM 呼び出しの外部依存
 - デプロイ/実行
   - 単一プロセス（PocketBase）で稼働し、`/` でフロントを配信、`/api/*` および `/mcp/*` で API を提供
 - ベース URL
@@ -265,7 +265,7 @@ MCPサーバーは、以下のツールを提供します。すべてのツー�
 ## 4. LLM 問い合わせ Bridge API（REST）
 
 ### 4.1 目的
-- フロントエンドおよび MCP ツール呼び出しから、OpenRouter への問い合わせをサーバー側で仲介（API キー秘匿）
+- フロントエンドおよび MCP ツール呼び出しから、OpenAI API 互換サービスへの問い合わせをサーバー側で仲介（API キー秘匿）
 
 ### 4.2 エンドポイント
 - `POST /api/llm/query`
@@ -273,7 +273,7 @@ MCPサーバーは、以下のツールを提供します。すべてのツー�
   - リクエスト JSON
     - `type`: "summarize" | "translate" | "ask"
     - `payload`: オペレーションごとのパラメータ
-    - `model`(optional): 例 `openai/gpt-4o-mini`, `google/gemini-1.5-pro-latest` など（OpenRouter モデル名）
+    - `model`(optional): 例 `openai/gpt-4o-mini`, `google/gemini-1.5-pro-latest` など（プロバイダのモデル名）
     - `options`(optional): { maxTokens?, temperature?, topP? }
   - レスポンス JSON
     - `result`: オペレーション結果（文字列または構造化）
@@ -300,7 +300,7 @@ MCPサーバーは、以下のツールを提供します。すべてのツー�
 ## 5. セキュリティ
 
 - 秘匿情報
-  - OpenRouter API キーは PocketBase サーバー側にのみ保存（環境変数 or Settings のサーバー専用領域）。環境変数名は `OPENROUTER_API_KEY` とする。
+  - LLM API キーは PocketBase サーバー側にのみ保存（環境変数 or Settings のサーバー専用領域）。環境変数名は `LLM_API_KEY` とする。
   - DB には保存しない（必要なら KMS 等で暗号化した上で PB 設定に保持）
 - 認可境界
   - `/mcp/rss` は Bearer（MCP トークン または pbJWT）を受け付ける。pbJWT はユーザー自身の操作のみ許可。

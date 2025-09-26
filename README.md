@@ -50,7 +50,7 @@
     - **State Management**: [Zustand](https://github.com/pmndrs/zustand)
     - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **LLMプロバイダ**:
-    - **[OpenRouter](https://openrouter.ai/)**: 複数の大規模言語モデルを透過的に利用。
+    - **[OpenRouter](https://openrouter.ai/)** またはその他の OpenAI API 互換サービス: 複数の大規模言語モデルを透過的に利用。
 
 ## 🚀 実行方法
 
@@ -58,7 +58,7 @@
 
 最も簡単で推奨される起動方法です。
 
-1.  `compose.yaml` ファイルを開き、`environment` セクションにある `OPENROUTER_API_KEY` にご自身の [OpenRouter](https://openrouter.ai/) APIキーを設定します。
+1.  `compose.yaml` ファイルを開き、`environment` セクションにある `LLM_API_KEY` にご自身の [OpenRouter](https://openrouter.ai/) APIキーを設定します。必要に応じて `LLM_BASE_URL` も設定できます。
     *(APIキーがなくてもAI連携機能以外は動作します)*
 
 2.  以下のコマンドを実行して、コンテナをビルドし、バックグラウンドで起動します。
@@ -86,7 +86,7 @@
     - ビルドされた資材 (`frontend/dist` ディレクトリの中身) を `pb_public` ディレクトリにコピーします。
 
 3.  **環境変数の設定**:
-    - 環境変数 `OPENROUTER_API_KEY` にAPIキーを設定します。
+    - 環境変数 `LLM_API_KEY` にAPIキーを設定します。必要に応じて `LLM_BASE_URL` も設定できます。
 
 4.  **サーバーの起動**:
     - プロジェクトのルートディレクトリで以下のコマンドを実行し、PocketBaseサーバーを起動します。

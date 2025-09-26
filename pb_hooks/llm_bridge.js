@@ -1,8 +1,8 @@
 // pb_hooks/llm_bridge.js
 // Bridge to OpenRouter for summarize/translate/ask operations.
-// Reads OPENROUTER_API_KEY from environment and performs chat completion calls.
+// Reads LLM_API_KEY and LLM_BASE_URL from environment and performs chat completion calls.
 
-let __OPENROUTER_API_KEY_CACHE = null;
+let __LLM_API_KEY_CACHE = null;
 
 // ---- Article fetch & clip helpers ----
 const __DEFAULT_CLIP = {
@@ -161,10 +161,10 @@ function __fetchAndClipArticle(url, clipOpts) {
 }
 
 function ensureApiKey() {
-  if (__OPENROUTER_API_KEY_CACHE) return __OPENROUTER_API_KEY_CACHE;
+  if (__LLM_API_KEY_CACHE) return __LLM_API_KEY_CACHE;
 
   // 1) Try environment first
-  let key = $os.getenv('OPENROUTER_API_KEY') || '';
+  let key = $os.getenv('LLM_API_KEY') || '';
 
   // 2) Fallback: try to load from project .env next to pb_hooks
   if (!key) {
@@ -176,7 +176,7 @@ function ensureApiKey() {
       const envText = toString(envBytes);
       const lines = envText.split(/\r?\n/);
       for (const line of lines) {
-        const m = line.match(/^OPENROUTER_API_KEY\s*=\s*(.*)$/);
+        const m = line.match(/^LLM_API_KEY\s*=\s*(.*)$/);
         if (m) {
           let v = m[1].trim();
           if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
@@ -192,11 +192,28 @@ function ensureApiKey() {
   }
 
   if (!key) {
-    throw new InternalServerError('Missing OPENROUTER_API_KEY');
+    throw new InternalServerError('Missing LLM_API_KEY');
   }
 
-  __OPENROUTER_API_KEY_CACHE = key;
+  __LLM_API_KEY_CACHE = key;
   return key;
+}
+
+function getBaseUrl() {
+  // 1) Try environment first
+  let baseUrl = $os.getenv('LLM_BASE_URL') || '';
+
+  // 2) Fallback to default
+  if (!baseUrl) {
+    baseUrl = 'https://openrouter.ai/api/v1/';
+  }
+
+  // Ensure trailing slash
+  if (!baseUrl.endsWith('/')) {
+    baseUrl += '/';
+  }
+
+  return baseUrl;
 }
 
 function normOptions(options) {
@@ -284,6 +301,7 @@ function extractResult(json) {
 
 function callOpenRouter(type, payload, model, options) {
   const apiKey = ensureApiKey();
+  const baseUrl = getBaseUrl();
 
   // If summarize/ask and articleUrl present, try to fetch and clip the article.
   try {
@@ -314,7 +332,7 @@ function callOpenRouter(type, payload, model, options) {
 
   const res = $http.send({
     method: 'POST',
-    url: 'https://openrouter.ai/api/v1/chat/completions',
+    url: baseUrl + 'chat/completions',
     headers: {
       'Authorization': 'Bearer ' + apiKey,
       'Content-Type': 'application/json',
@@ -347,9 +365,10 @@ function listModels() {
   }
 
   const apiKey = ensureApiKey();
+  const baseUrl = getBaseUrl();
   const res = $http.send({
     method: 'GET',
-    url: 'https://openrouter.ai/api/v1/models',
+    url: baseUrl + 'models',
     headers: {
       'Authorization': 'Bearer ' + apiKey,
       'Content-Type': 'application/json',

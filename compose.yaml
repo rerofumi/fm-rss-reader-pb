@@ -9,5 +9,6 @@ services:
     volumes:
       - ./pb_data:/app/pb_data
     environment:
-       - OPENROUTER_API_KEY=xxxDUMMYxxx
+       - LLM_API_KEY=xxxDUMMYxxx
+       - LLM_BASE_URL=https://openrouter.ai/api/v1/
 
