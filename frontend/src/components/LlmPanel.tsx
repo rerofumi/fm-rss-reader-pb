@@ -130,7 +130,7 @@ ${question}`,
 
   return (
     <Sheet open={llmPanel.open} onOpenChange={closeLlmPanel}>
-      <SheetContent className="w-[600px] sm:max-w-[600px]">
+      <SheetContent className="w-[600px] sm:max-w-[600px] h-full flex flex-col">
         <SheetHeader>
           <SheetTitle>AI アシスタント</SheetTitle>
           <SheetDescription>
@@ -138,11 +138,12 @@ ${question}`,
           </SheetDescription>
         </SheetHeader>
 
-        {llmPanel.article && (
-          <div className="mt-6 space-y-6">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium text-sm text-gray-900 mb-2">対象記事</h4>
-              <p className="text-sm text-gray-700 line-clamp-2">
+        <div className="flex-1 overflow-y-auto -mr-6 pr-6">
+          {llmPanel.article && (
+            <div className="mt-6 space-y-6">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-sm text-gray-900 mb-2">対象記事</h4>
+                <p className="text-sm text-gray-700 line-clamp-2">
                 {llmPanel.article.title}
               </p>
             </div>
@@ -312,6 +313,7 @@ ${question}`,
             )}
           </div>
         )}
+        </div>
       </SheetContent>
     </Sheet>
   );
